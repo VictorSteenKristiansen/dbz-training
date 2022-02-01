@@ -1,0 +1,70 @@
+version: '3'
+services:
+  zookeeper:
+    container_name: zookeeper
+    image: debezium/zookeeper:1.8
+    ports:
+      - 2181:2181
+    networks:
+      - dbz-network
+  kafka:
+    container_name: kafka
+    image: debezium/kafka:1.8
+    ports:
+      - 9092:9092
+    depends_on:
+      - zookeeper
+    environment:
+      - ZOOKEEPER_CONNECT=zookeeper:2181
+    networks:
+      - dbz-network
+  connect:
+    container_name: connect
+    image: 
+      cdcdevregistry.azurecr.io/dbz-connect-1-8-ojdbc-confluentjdbc-confluentadw:v2
+    ports:
+      - "8083:8083"
+    depends_on:
+      - kafka
+      - schema-registry
+    environment:
+      - BOOTSTRAP_SERVERS=kafka:9092
+      - GROUP_ID=1
+      - CONFIG_STORAGE_TOPIC=my_connect_configs
+      - OFFSET_STORAGE_TOPIC=my_connect_offsets
+      - STATUS_STORAGE_TOPIC=my_connect_statuses
+      - KEY_CONVERTER=io.confluent.connect.avro.AvroConverter
+      - VALUE_CONVERTER=io.confluent.connect.avro.AvroConverter
+      - CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL=http://schema-registry:8081
+      - CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL=http://schema-registry:8081
+    networks:
+      - dbz-network
+    volumes:
+      - C:\Users\vsk\Downloads\confluentinc-kafka-connect-azure-sql-dw-1.0.4:/stuff
+  kowl:
+    container_name: kowl
+    image: quay.io/cloudhut/kowl:master
+    ports:
+      - 8082:8080
+    depends_on:
+      - kafka
+      - connect
+      - zookeeper
+    environment:
+      - KAFKA_BROKERS=host.docker.internal:9092
+    networks:
+      - dbz-network  
+  schema-registry:
+    container_name: schema-registry
+    image: confluentinc/cp-schema-registry
+    ports: 
+      - 8081:8081
+    environment:
+      - SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS=host.docker.internal:9092
+      - SCHEMA_REGISTRY_HOST_NAME=schema-registry
+      - SCHEMA_REGISTRY_LISTENERS=http://schema-registry:8081
+    networks:
+      - dbz-network
+networks:
+  dbz-network:
+    external: false
